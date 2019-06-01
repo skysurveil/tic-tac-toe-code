@@ -32,7 +32,7 @@ private:
 
 	// additional functions
 	void PlayerMove(Board&);
-	void DisplayBoard(Board&);
+	//void DisplayBoard(Board&);
 	void winnerCheck(Board&);
 
 	// game should continue to run
@@ -41,4 +41,12 @@ private:
 	Uint32 mTicksCount; // for calculating delta time w/ GetTicks
 
 	float deltaTime;
+	bool player1WinsFlag;
+	bool player2WinsFlag;
+	bool tieGameFlag;
+	bool mainMenuCheck; // don't reset this with R.
+	string player1WinnerString;
+	string player2WinnerString;
+	string playAgainString;
+	string tieString;
 };

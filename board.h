@@ -11,6 +11,7 @@ class Board
 public:
 	Board();
 	void UpdateBoard(int); // Update specific cell to be shown. false -> true
+	void ResetBoard(int); // reset specific cell to be hidden. true -> false
 	vector<bool> AssembleVisibleCells(); // returns bool vector (true = visible, false = invisible).
 	// functions to retrieve private variable info:
 	int returnCellX(int);

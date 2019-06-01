@@ -9,7 +9,8 @@ const int windowHeight = 500;
 int playerTurn = 0; // if % 2 == 0, player1 turn, else player2 turn.
 bool player1Wins = false;
 bool player2Wins = false;
-bool testing = true;
+bool tieGame = false;
+bool testing = false; // for console debugging.
 extern bool success;
 
 enum position { // the 9 cells of the board (corresponds to vector of Cells)
@@ -31,6 +32,14 @@ Game::Game() // game default constructor
 	mIsRunning = true;
 	mTicksCount = 0;
 	deltaTime = 0; // because compiler complained about lack of initialization
+	player1WinsFlag = false;
+	player2WinsFlag = false;
+	tieGameFlag = false;
+	player1WinnerString = "Player 1 Wins!";
+	playAgainString = "Press R to play again";
+	player2WinnerString = "Player 2 Wins!";
+	tieString = "It's a tie!";
+	mainMenuCheck = false; // while false, display main menu.
 }
 
 bool Game::Initialize()
@@ -76,6 +85,13 @@ bool Game::Initialize()
 		return false;
 		//exit(-1);
 	}
+	int imageFlags = IMG_INIT_PNG;
+	//int sdlImageResult = IMG_Init(imageFlags);
+	if (!(IMG_Init(imageFlags) & imageFlags))
+	{
+		SDL_Log("Failed to initialize PNG support %s", IMG_GetError());
+		return false;
+	}
 	// Initialize game board***
 
 	return true;
@@ -97,6 +113,7 @@ void Game::Shutdown()
 	SDL_DestroyRenderer(mRenderer);
 	TTF_Quit();
 	Mix_Quit();
+	IMG_Quit();
 	SDL_Quit();
 }
 
@@ -125,7 +142,23 @@ void Game::ProcessInput(Board &gameBoard)
 		mIsRunning = false;
 	}
 	// more to come..
-	//PlayerMove();
+
+	if (state[SDL_SCANCODE_R])
+	{
+		for (int i = 0; i < 9; i++)
+		{
+			gameBoard.setOwnership(i, 0); // reset ownership to None.
+			gameBoard.ResetBoard(i); // reset shown variable to false for each cell.
+			// reset all endgame flags:
+			player1Wins = false;
+			player1WinsFlag = false;
+			player2Wins = false;
+			player2WinsFlag = false;
+			tieGame = false;
+			tieGameFlag = false;
+			playerTurn = 0; // reset player counter.
+		}
+	}
 	
 }
 
@@ -144,13 +177,24 @@ void Game::UpdateGame(Board &gameBoard)
 	winnerCheck(gameBoard);
 	if (player1Wins == true)
 	{
-		cout << "Player 1 Wins!\n";
-		mIsRunning = false; // Quit the application *** for now ***
+		if (testing)
+			cout << "Player 1 Wins!\n";
+		player1WinsFlag = true;
+		//mIsRunning = false; // Quit the application *** for now ***
 	}
 	if (player2Wins == true)
 	{
-		cout << "Player 2 Wins!\n";
-		mIsRunning = false; // Quit the application *** for now ***
+		if (testing)
+			cout << "Player 2 Wins!\n";
+		player2WinsFlag = true;
+		//mIsRunning = false; // Quit the application *** for now ***
+	}
+	if (tieGame == true)
+	{
+		if (testing)
+			cout << "Tie game!\n";
+		tieGameFlag = true;
+		//mIsRunning = false; // Quit the application *** for now ***
 	}
 
 }
@@ -159,7 +203,18 @@ void Game::GenerateOutput(Board &gameBoard)
 {
 	SDL_SetRenderDrawColor(mRenderer, 255, 255, 255, 255); // rgba
 	SDL_RenderClear(mRenderer);
-	SDL_SetRenderDrawColor(mRenderer, 0, 0, 0, 255); // black for board layout
+	// grid color based on game state:
+	if (tieGame == true)
+		SDL_SetRenderDrawColor(mRenderer, 0, 0, 0, 255); // black for board layout (if tie game)
+	else if (player1Wins == true)
+		SDL_SetRenderDrawColor(mRenderer, 0, 0, 255, 255); // blue for player 1
+	else if (player2Wins == true)
+		SDL_SetRenderDrawColor(mRenderer, 255, 0, 0, 255); // red for player 2
+	else if (playerTurn % 2 == 0)
+		SDL_SetRenderDrawColor(mRenderer, 0, 0, 255, 255); // blue for player 1's turn (X)
+	else
+		SDL_SetRenderDrawColor(mRenderer, 255, 0, 0, 255); // red for player 2's turn (O)
+
 	SDL_Rect leftVWall = { windowWidth / 3,0,10,windowHeight };
 	SDL_RenderFillRect(mRenderer, &leftVWall);
 	SDL_Rect rightVWall = { windowWidth - windowWidth / 3,0,10,windowHeight };
@@ -184,14 +239,173 @@ void Game::GenerateOutput(Board &gameBoard)
 			int height = gameBoard.returnCellHeight(i);
 			SDL_Rect cell = { x, y, width, height };
 			int cellOwnership = gameBoard.getOwnership(i);
+			/* // non-image version (red & blue squares)
 			if (cellOwnership == 1)
 				SDL_SetRenderDrawColor(mRenderer, 255, 0, 0, 255); // red for player 1
 			else
 				SDL_SetRenderDrawColor(mRenderer, 0, 0, 255, 255); // blue for player 2
 			SDL_RenderFillRect(mRenderer, &cell);
+			*/
+			if (cellOwnership == 1)
+			{
+				SDL_Surface* player1X;
+				player1X = IMG_Load("x.png");
+				SDL_Texture* player1Texture = SDL_CreateTextureFromSurface(mRenderer, player1X);
+				SDL_Rect player1Rect = { gameBoard.returnCellX(i), gameBoard.returnCellY(i), gameBoard.returnCellWidth(i), gameBoard.returnCellHeight(i) };
+				SDL_FreeSurface(player1X);
+				SDL_RenderCopy(mRenderer, player1Texture, NULL, &player1Rect);
+				SDL_DestroyTexture(player1Texture);
+			}
+			else
+			{
+				SDL_Surface* player2O;
+				player2O = IMG_Load("o.png");
+				SDL_Texture* player2Texture = SDL_CreateTextureFromSurface(mRenderer, player2O);
+				SDL_Rect player2Rect = { gameBoard.returnCellX(i), gameBoard.returnCellY(i), gameBoard.returnCellWidth(i), gameBoard.returnCellHeight(i) };
+				SDL_FreeSurface(player2O);
+				SDL_RenderCopy(mRenderer, player2Texture, NULL, &player2Rect);
+				SDL_DestroyTexture(player2Texture);
+			}
 		}
 	}
 	//DisplayBoard(gameBoard);
+	if (player1WinsFlag) // == true
+	{
+		TTF_Font* textFont = TTF_OpenFont("Sans2.ttf", 36);
+		// "Player 1 Wins!" text:
+		int textWidth, textHeight;
+		TTF_SizeText(textFont, "Player 1 Wins!", &textWidth, &textHeight);
+		if (testing)
+			cout << "Text width is: " << textWidth << ", text height is: " << textHeight << endl;
+		SDL_Color textColor;
+		textColor.r = 0; textColor.g = 0; textColor.b = 0; textColor.a = 255; // black for text
+		SDL_Color bgColor;
+		bgColor.r = 255; bgColor.g = 255; bgColor.b = 255; bgColor.a = 255; // white for background.
+		SDL_Rect winnerRect;
+		winnerRect.x = (windowWidth / 2) - (textWidth / 2);
+		winnerRect.y = (float)(windowHeight / 2) - (float)(textHeight * 1.25);
+		const char* cStringWinner1 = player1WinnerString.c_str();
+		SDL_Surface* surfaceWinner1 = TTF_RenderText_Shaded(textFont, cStringWinner1, textColor, bgColor); // _solid for transparent text, _shaded for non transparent.
+		SDL_Texture* Winner1 = SDL_CreateTextureFromSurface(mRenderer, surfaceWinner1);
+		SDL_QueryTexture(Winner1, nullptr, nullptr, &winnerRect.w, &winnerRect.h);
+		SDL_FreeSurface(surfaceWinner1);
+		SDL_RenderCopy(mRenderer, Winner1, NULL, &winnerRect);
+		// "Press R to play again" text:
+		int playAgainWidth, playAgainHeight;
+		TTF_SizeText(textFont, "Press R to play again", &playAgainWidth, &playAgainHeight);
+		if (testing)
+			cout << "Text width is: " << playAgainWidth << ", text height is: " << playAgainHeight << endl;
+		SDL_Rect playAgainRect;
+		playAgainRect.x = (windowWidth / 2) - (playAgainWidth / 2);
+		playAgainRect.y = winnerRect.y + textHeight;
+		const char* cStringPlayAgain = playAgainString.c_str();
+		SDL_Surface* surfacePlayAgain = TTF_RenderText_Shaded(textFont, cStringPlayAgain, textColor, bgColor);
+		SDL_Texture* PlayAgain = SDL_CreateTextureFromSurface(mRenderer, surfacePlayAgain);
+		SDL_QueryTexture(PlayAgain, nullptr, nullptr, &playAgainRect.w, &playAgainRect.h);
+		SDL_FreeSurface(surfacePlayAgain);
+		SDL_RenderCopy(mRenderer, PlayAgain, NULL, &playAgainRect);
+
+		SDL_DestroyTexture(Winner1);
+		SDL_DestroyTexture(PlayAgain);
+		TTF_CloseFont(textFont);
+
+	}
+	if (player2WinsFlag)
+	{
+		TTF_Font* textFont = TTF_OpenFont("Sans2.ttf", 36);
+		// "Player 2 Wins!" text:
+		int textWidth, textHeight;
+		TTF_SizeText(textFont, "Player 2 Wins!", &textWidth, &textHeight);
+		if (testing)
+			cout << "Text width is: " << textWidth << ", text height is: " << textHeight << endl;
+		SDL_Color textColor;
+		textColor.r = 0; textColor.g = 0; textColor.b = 0; textColor.a = 255; // black for text
+		SDL_Color bgColor;
+		bgColor.r = 255; bgColor.g = 255; bgColor.b = 255; bgColor.a = 255; // white for background.
+		SDL_Rect winnerRect;
+		winnerRect.x = (windowWidth / 2) - (textWidth / 2);
+		winnerRect.y = (float)(windowHeight / 2) - (float)(textHeight * 1.25);
+		const char* cStringWinner2 = player2WinnerString.c_str();
+		SDL_Surface* surfaceWinner2 = TTF_RenderText_Shaded(textFont, cStringWinner2, textColor, bgColor); // _solid for transparent text, _shaded for non transparent.
+		SDL_Texture* Winner2 = SDL_CreateTextureFromSurface(mRenderer, surfaceWinner2);
+		SDL_QueryTexture(Winner2, nullptr, nullptr, &winnerRect.w, &winnerRect.h);
+		SDL_FreeSurface(surfaceWinner2);
+		SDL_RenderCopy(mRenderer, Winner2, NULL, &winnerRect);
+		// "Press R to play again" text:
+		int playAgainWidth, playAgainHeight;
+		TTF_SizeText(textFont, "Press R to play again", &playAgainWidth, &playAgainHeight);
+		if (testing)
+			cout << "Text width is: " << playAgainWidth << ", text height is: " << playAgainHeight << endl;
+		SDL_Rect playAgainRect;
+		playAgainRect.x = (windowWidth / 2) - (playAgainWidth / 2);
+		playAgainRect.y = winnerRect.y + textHeight;
+		const char* cStringPlayAgain = playAgainString.c_str();
+		SDL_Surface* surfacePlayAgain = TTF_RenderText_Shaded(textFont, cStringPlayAgain, textColor, bgColor);
+		SDL_Texture* PlayAgain = SDL_CreateTextureFromSurface(mRenderer, surfacePlayAgain);
+		SDL_QueryTexture(PlayAgain, nullptr, nullptr, &playAgainRect.w, &playAgainRect.h);
+		SDL_FreeSurface(surfacePlayAgain);
+		SDL_RenderCopy(mRenderer, PlayAgain, NULL, &playAgainRect);
+
+		SDL_DestroyTexture(Winner2);
+		SDL_DestroyTexture(PlayAgain);
+		TTF_CloseFont(textFont);
+	}
+	if (tieGameFlag)
+	{
+		TTF_Font* textFont = TTF_OpenFont("Sans2.ttf", 36);
+		// "It's a tie!" text:
+		int textWidth, textHeight;
+		TTF_SizeText(textFont, "It's a tie!", &textWidth, &textHeight);
+		if (testing)
+			cout << "Text width is: " << textWidth << ", text height is: " << textHeight << endl;
+		SDL_Color textColor;
+		textColor.r = 0; textColor.g = 0; textColor.b = 0; textColor.a = 255; // black for text
+		SDL_Color bgColor;
+		bgColor.r = 255; bgColor.g = 255; bgColor.b = 255; bgColor.a = 255; // white for background.
+		SDL_Rect winnerRect;
+		winnerRect.x = (windowWidth / 2) - (textWidth / 2);
+		winnerRect.y = (float)(windowHeight / 2) - (float)(textHeight * 1.25);
+		const char* cStringTie = tieString.c_str();
+		SDL_Surface* surfaceTie = TTF_RenderText_Shaded(textFont, cStringTie, textColor, bgColor); // _solid for transparent text, _shaded for non transparent.
+		SDL_Texture* Tie = SDL_CreateTextureFromSurface(mRenderer, surfaceTie);
+		SDL_QueryTexture(Tie, nullptr, nullptr, &winnerRect.w, &winnerRect.h);
+		SDL_FreeSurface(surfaceTie);
+		SDL_RenderCopy(mRenderer, Tie, NULL, &winnerRect);
+		// "Press R to play again" text:
+		int playAgainWidth, playAgainHeight;
+		TTF_SizeText(textFont, "Press R to play again", &playAgainWidth, &playAgainHeight);
+		if (testing)
+			cout << "Text width is: " << playAgainWidth << ", text height is: " << playAgainHeight << endl;
+		SDL_Rect playAgainRect;
+		playAgainRect.x = (windowWidth / 2) - (playAgainWidth / 2);
+		playAgainRect.y = winnerRect.y + textHeight;
+		const char* cStringPlayAgain = playAgainString.c_str();
+		SDL_Surface* surfacePlayAgain = TTF_RenderText_Shaded(textFont, cStringPlayAgain, textColor, bgColor);
+		SDL_Texture* PlayAgain = SDL_CreateTextureFromSurface(mRenderer, surfacePlayAgain);
+		SDL_QueryTexture(PlayAgain, nullptr, nullptr, &playAgainRect.w, &playAgainRect.h);
+		SDL_FreeSurface(surfacePlayAgain);
+		SDL_RenderCopy(mRenderer, PlayAgain, NULL, &playAgainRect);
+
+		SDL_DestroyTexture(Tie);
+		SDL_DestroyTexture(PlayAgain);
+		TTF_CloseFont(textFont);
+	}
+
+	if (!mainMenuCheck)
+	{
+		const Uint8* state = SDL_GetKeyboardState(NULL);
+		SDL_Surface* mainMenu;
+		mainMenu = IMG_Load("mainMenu.png");
+		SDL_Texture* menuTexture = SDL_CreateTextureFromSurface(mRenderer, mainMenu);
+		SDL_Rect mainMenuRect = { 0, 0, windowWidth, windowHeight };
+		SDL_FreeSurface(mainMenu);
+		SDL_RenderCopy(mRenderer, menuTexture, NULL, &mainMenuRect);
+		SDL_DestroyTexture(menuTexture);
+		if (state[SDL_SCANCODE_RETURN])
+		{
+			mainMenuCheck = true;
+		}
+	}
 
 	// final line, renderpresent.
 	SDL_RenderPresent(mRenderer);
@@ -340,6 +554,7 @@ void Game::PlayerMove(Board &gameBoard)
 	// 
 }
 
+/*
 void Game::DisplayBoard(Board &gameBoard)
 {
 	for (int i = 0; i < 9; i++)
@@ -350,6 +565,7 @@ void Game::DisplayBoard(Board &gameBoard)
 		}
 	}
 }
+*/
 
 // still need to add in player turns to determine color of cells..
 // -- and add member variable to the cells specifying which player has ownership..
@@ -382,40 +598,44 @@ void Game::winnerCheck(Board& gameBoard)
 	else if (topLeftShown && middleLeftShown && bottomLeftShown && topLeftOwnership == 2 && middleLeftOwnership == 2 && bottomLeftOwnership == 2)
 		player2Wins = true;
 	// vertical center solution check
-	if (topCenterShown && middleCenterShown && bottomCenterShown && topCenterOwnership == 1 && middleCenterOwnership == 1 && bottomCenterOwnership == 1)
+	else if (topCenterShown && middleCenterShown && bottomCenterShown && topCenterOwnership == 1 && middleCenterOwnership == 1 && bottomCenterOwnership == 1)
 		player1Wins = true;
 	else if (topCenterShown && middleCenterShown && bottomCenterShown && topCenterOwnership == 2 && middleCenterOwnership == 2 && bottomCenterOwnership == 2)
 		player2Wins = true;
 	// vertical right solution check
-	if (topRightShown && middleRightShown && bottomRightShown && topRightOwnership == 1 && middleRightOwnership == 1 && bottomRightOwnership == 1)
+	else if (topRightShown && middleRightShown && bottomRightShown && topRightOwnership == 1 && middleRightOwnership == 1 && bottomRightOwnership == 1)
 		player1Wins = true;
 	else if (topRightShown && middleRightShown && bottomRightShown && topRightOwnership == 2 && middleRightOwnership == 2 && bottomRightOwnership == 2)
 		player2Wins = true;
 	// horizontal top solution check
-	if (topLeftShown && topCenterShown && topRightShown && topLeftOwnership == 1 && topCenterOwnership == 1 && topRightOwnership == 1)
+	else if (topLeftShown && topCenterShown && topRightShown && topLeftOwnership == 1 && topCenterOwnership == 1 && topRightOwnership == 1)
 		player1Wins = true;
 	else if (topLeftShown && topCenterShown && topRightShown && topLeftOwnership == 2 && topCenterOwnership == 2 && topRightOwnership == 2)
 		player2Wins = true;
 	// horizontal center solution check
-	if (middleLeftShown && middleCenterShown && middleRightShown && middleLeftOwnership == 1 && middleCenterOwnership == 1 && middleRightOwnership == 1)
+	else if (middleLeftShown && middleCenterShown && middleRightShown && middleLeftOwnership == 1 && middleCenterOwnership == 1 && middleRightOwnership == 1)
 		player1Wins = true;
 	else if (middleLeftShown && middleCenterShown && middleRightShown && middleLeftOwnership == 2 && middleCenterOwnership == 2 && middleRightOwnership == 2)
 		player2Wins = true;
 	// horizontal bottom solution check
-	if (bottomLeftShown && bottomCenterShown && bottomRightShown && bottomLeftOwnership == 1 && bottomCenterOwnership == 1 && bottomRightOwnership == 1)
+	else if (bottomLeftShown && bottomCenterShown && bottomRightShown && bottomLeftOwnership == 1 && bottomCenterOwnership == 1 && bottomRightOwnership == 1)
 		player1Wins = true;
 	else if (bottomLeftShown && bottomCenterShown && bottomRightShown && bottomLeftOwnership == 2 && bottomCenterOwnership == 2 && bottomRightOwnership == 2)
 		player2Wins = true;
 	// diagonal top left to bottom right solution check
-	if (topLeftShown && middleCenterShown && bottomRightShown && topLeftOwnership == 1 && middleCenterOwnership == 1 && bottomRightOwnership == 1)
+	else if (topLeftShown && middleCenterShown && bottomRightShown && topLeftOwnership == 1 && middleCenterOwnership == 1 && bottomRightOwnership == 1)
 		player1Wins = true;
 	else if (topLeftShown && middleCenterShown && bottomRightShown && topLeftOwnership == 2 && middleCenterOwnership == 2 && bottomRightOwnership == 2)
 		player2Wins = true;
 	// diagonal top right to bottom left solution check
-	if (topRightShown && middleCenterShown && bottomLeftShown && topRightOwnership == 1 && middleCenterOwnership == 1 && bottomLeftOwnership == 1)
+	else if (topRightShown && middleCenterShown && bottomLeftShown && topRightOwnership == 1 && middleCenterOwnership == 1 && bottomLeftOwnership == 1)
 		player1Wins = true;
 	else if (topRightShown && middleCenterShown && bottomLeftShown && topRightOwnership == 1 && middleCenterOwnership == 1 && bottomLeftOwnership == 1)
 		player2Wins = true;
+	else if (topLeftShown && topCenterShown && topRightShown && middleLeftShown && middleCenterShown && middleRightShown && bottomLeftShown && bottomCenterShown && bottomRightShown)
+		tieGame = true;
+	else
+		return;
 }
 
 // board:

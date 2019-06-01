@@ -77,6 +77,11 @@ void Board::UpdateBoard(int position) // sets specific cell to shown = true.
 	this->boardVector[position].shown = true;
 }
 
+void Board::ResetBoard(int position) // resets specific cell to shown = false.
+{
+	this->boardVector[position].shown = false;
+}
+
 vector<bool> Board::AssembleVisibleCells()
 {
 	vector<bool> visibleCells;
